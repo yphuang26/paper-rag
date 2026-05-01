@@ -1,0 +1,15 @@
+services:
+  rag-app:
+    build: .
+    container_name: paper-rag
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./src:/app/src
+      - ./app.py:/app/app.py
+      - ./data:/app/data
+      - ./chroma_db:/app/chroma_db
+    env_file:
+      - .env
+    stdin_open: true
+    tty: true
