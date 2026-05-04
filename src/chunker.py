@@ -84,7 +84,7 @@ def chunk_pages(
     """
     對每頁文字做 chunking，保留頁碼資訊（之後 retrieval 要顯示來源）。
     """
-    separators = ["\n\n", "\n", ". ", " ", ""]
+    separators = ["\n\n", "\n", "。", "！", "？", "；", ". ", "! ", "? ", " ", ""]
     all_chunks = []
     chunk_id = 0
 

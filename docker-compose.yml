@@ -1,6 +1,7 @@
 services:
   rag-app:
     build: .
+    image: paper-rag-app
     container_name: paper-rag
     ports:
       - "8501:8501"

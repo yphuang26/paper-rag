@@ -10,7 +10,7 @@ def get_model() -> SentenceTransformer:
     global _model
     if _model is None:
         print("載入 embedding 模型中...")
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
+        _model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
         print("模型載入完成")
     return _model
 
