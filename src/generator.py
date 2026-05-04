@@ -1,4 +1,5 @@
 import os
+from typing import Generator
 from google import genai
 from google.genai import types
 from dataclasses import dataclass
@@ -92,6 +93,41 @@ def generate_answer(
         sources=chunks,
         query=query,
     )
+
+
+def generate_answer_stream(
+    query: str,
+    top_k: int = 5,
+    model: str = "gemma-4-26b-a4b-it",
+    collection_name: str = "papers",
+) -> tuple[Generator[str, None, None], list[RetrievedChunk]]:
+    """串流版 RAG：回傳 (text_generator, chunks)，讓呼叫端邊收邊顯示。"""
+    chunks = retrieve(query, top_k=top_k, collection_name=collection_name)
+
+    if not chunks:
+        def _empty():
+            yield "No documents found. Please build the index first."
+        return _empty(), []
+
+    user_prompt = build_user_prompt(query, chunks)
+    client = get_client()
+
+    response_stream = client.models.generate_content_stream(
+        model=model,
+        contents=user_prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            max_output_tokens=1024,
+            temperature=0.3,
+        ),
+    )
+
+    def _stream():
+        for chunk in response_stream:
+            if chunk.text:
+                yield chunk.text
+
+    return _stream(), chunks
 
 
 def print_answer(result: RAGAnswer):

@@ -3,7 +3,7 @@ import streamlit as st
 from src.pdf_loader import load_pdf
 from src.chunker import chunk_pages
 from src.embedder import embed_and_store, reset_collection, get_or_create_collection
-from src.generator import generate_answer
+from src.generator import generate_answer_stream
 
 # ─────────────────────────────────────────────────
 # 頁面設定
@@ -90,6 +90,22 @@ with st.sidebar:
     st.divider()
 
     st.subheader("⚙️ Retrieval Settings")
+
+    GEMINI_MODELS = {
+        "gemma-4-26b (預設)": "gemma-4-26b-a4b-it",
+        "gemini-2.5-flash": "gemini-2.5-flash",
+        "gemini-2.5-pro (高品質)": "gemini-2.5-pro",
+        "gemini-3-flash-preview (最新)": "gemini-3-flash-preview",
+        "gemini-3.1-flash-lite (最省配額)": "gemini-3.1-flash-lite-preview",
+    }
+
+    selected_model_label = st.selectbox(
+        "模型",
+        options=list(GEMINI_MODELS.keys()),
+        help="gemma-4-26b 為開源模型；gemini-2.5-flash 免費方案每天限 20 次，遇到配額超限可切換其他模型。",
+    )
+    selected_model = GEMINI_MODELS[selected_model_label]
+
     top_k = st.slider("Top K chunks", min_value=1, max_value=10, value=5)
 
     if st.button("🗑️ Clear chat", use_container_width=True):
@@ -125,40 +141,33 @@ if prompt := st.chat_input("Ask a question about the paper..."):
 
     # 生成回答
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            try:
-                result = generate_answer(prompt, top_k=top_k)
+        try:
+            stream, source_chunks = generate_answer_stream(prompt, top_k=top_k, model=selected_model)
+            answer_text = st.write_stream(stream)
 
-                st.markdown(result.answer)
+            sources = [
+                {"page": s.page, "score": s.score, "text": s.text}
+                for s in source_chunks
+            ]
 
-                # 顯示來源
-                sources = [
-                    {
-                        "page": s.page,
-                        "score": s.score,
-                        "text": s.text,
-                    }
-                    for s in result.sources
-                ]
+            with st.expander(f"📚 Sources ({len(sources)} chunks)"):
+                for i, src in enumerate(sources, 1):
+                    st.markdown(
+                        f"**[{i}] Page {src['page']}** — similarity: `{src['score']:.3f}`"
+                    )
+                    st.markdown(f"> {src['text']}")
+                    st.divider()
 
-                with st.expander(f"📚 Sources ({len(sources)} chunks)"):
-                    for i, src in enumerate(sources, 1):
-                        st.markdown(
-                            f"**[{i}] Page {src['page']}** — similarity: `{src['score']:.3f}`"
-                        )
-                        st.markdown(f"> {src['text']}")
-                        st.divider()
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": answer_text,
+                "sources": sources,
+            })
 
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": result.answer,
-                    "sources": sources,
-                })
-
-            except Exception as e:
-                error_msg = f"Error: {str(e)}"
-                st.error(error_msg)
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": error_msg,
-                })
+        except Exception as e:
+            error_msg = f"Error: {str(e)}"
+            st.error(error_msg)
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": error_msg,
+            })
