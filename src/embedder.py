@@ -10,7 +10,7 @@ def get_model() -> SentenceTransformer:
     global _model
     if _model is None:
         print("載入 embedding 模型中...")
-        _model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+        _model = SentenceTransformer("intfloat/multilingual-e5-small")
         print("模型載入完成")
     return _model
 
@@ -52,10 +52,13 @@ def embed_and_store(chunks: list[Chunk], collection_name: str = "papers") -> int
 
     texts = [c.text for c in valid_chunks]
     chunks = valid_chunks  # 後面 ids/metadatas 也要用過濾後的
-    
+
+    # e5 模型要求 document 加 "passage: " 前綴
+    prefixed_texts = [f"passage: {t}" for t in texts]
+
     print(f"對 {len(texts)} 個 chunks 做 embedding...")
     embeddings = model.encode(
-        texts,
+        prefixed_texts,
         show_progress_bar=True,
         convert_to_numpy=True,
     )
@@ -90,7 +93,7 @@ if __name__ == "__main__":
     from src.chunker import chunk_pages
 
     pages = load_pdf("/app/data/test.pdf")
-    chunks = chunk_pages(pages, chunk_size=500, overlap=50)
+    chunks = chunk_pages(pages, chunk_size=800, overlap=100)
     
     # 為了測試，先清空再寫入
     reset_collection("papers")

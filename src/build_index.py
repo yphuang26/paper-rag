@@ -10,7 +10,7 @@ def build(pdf_path: str, collection_name: str = "papers", reset: bool = True):
     print(f"   {len(pages)} 頁")
 
     print(f"✂️  切分 chunks...")
-    chunks = chunk_pages(pages, chunk_size=500, overlap=50)
+    chunks = chunk_pages(pages, chunk_size=800, overlap=100)
     print(f"   {len(chunks)} 個 chunks")
 
     if reset:

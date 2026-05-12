@@ -21,8 +21,8 @@ def retrieve(
     model = get_model()
     collection = get_or_create_collection(collection_name)
 
-    # 1. 把 query 編碼成向量
-    query_embedding = model.encode([query], convert_to_numpy=True)[0]
+    # 1. 把 query 編碼成向量（e5 模型要求加 "query: " 前綴）
+    query_embedding = model.encode([f"query: {query}"], convert_to_numpy=True)[0]
 
     # 2. 在 ChromaDB 查最近的 top_k 個
     results = collection.query(

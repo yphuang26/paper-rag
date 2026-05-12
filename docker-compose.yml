@@ -10,6 +10,7 @@ services:
       - ./app.py:/app/app.py
       - ./data:/app/data
       - ./chroma_db:/app/chroma_db
+      - ./.streamlit:/app/.streamlit
     env_file:
       - .env
     stdin_open: true

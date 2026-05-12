@@ -62,7 +62,7 @@ with st.sidebar:
                 st.write(f"   Found {len(pages)} pages")
 
                 st.write("✂️ Chunking text...")
-                chunks = chunk_pages(pages, chunk_size=500, overlap=50)
+                chunks = chunk_pages(pages, chunk_size=800, overlap=100)
                 st.write(f"   Created {len(chunks)} chunks")
 
                 st.write("🔢 Generating embeddings...")
@@ -93,9 +93,8 @@ with st.sidebar:
 
     GEMINI_MODELS = {
         "gemma-4-26b (預設)": "gemma-4-26b-a4b-it",
-        "gemini-2.5-flash": "gemini-2.5-flash",
-        "gemini-2.5-pro (高品質)": "gemini-2.5-pro",
-        "gemini-3-flash-preview (最新)": "gemini-3-flash-preview",
+        "gemini-2.5-flash (最實用)": "gemini-2.5-flash",
+        "gemini-3-flash (最新)": "gemini-3-flash-preview",
         "gemini-3.1-flash-lite (最省配額)": "gemini-3.1-flash-lite-preview",
     }
 
