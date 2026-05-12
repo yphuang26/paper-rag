@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Generator
 from google import genai
 from google.genai import types
@@ -112,20 +113,31 @@ def generate_answer_stream(
     user_prompt = build_user_prompt(query, chunks)
     client = get_client()
 
-    response_stream = client.models.generate_content_stream(
-        model=model,
-        contents=user_prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            max_output_tokens=1024,
-            temperature=0.3,
-        ),
+    config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_PROMPT,
+        max_output_tokens=1024,
+        temperature=0.3,
     )
 
     def _stream():
-        for chunk in response_stream:
-            if chunk.text:
-                yield chunk.text
+        for attempt in range(3):
+            yielded_any = False
+            try:
+                response_stream = client.models.generate_content_stream(
+                    model=model,
+                    contents=user_prompt,
+                    config=config,
+                )
+                for chunk in response_stream:
+                    if chunk.text:
+                        yielded_any = True
+                        yield chunk.text
+                return
+            except Exception:
+                if attempt < 2 and not yielded_any:
+                    time.sleep(2 ** attempt)  # 1s, 2s
+                else:
+                    raise
 
     return _stream(), chunks
 
