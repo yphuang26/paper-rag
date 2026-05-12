@@ -7,24 +7,24 @@
 ```
 PDF 上傳
   → 解析頁面文字（pypdf）
-  → 遞迴切分 Chunks（chunk_size=500, overlap=50）
-  → 向量化（all-MiniLM-L6-v2）
+  → 遞迴切分 Chunks（chunk_size=800, overlap=100）
+  → 向量化（multilingual-e5-small，passage: 前綴）
   → 存入 ChromaDB（cosine similarity）
-  → 使用者提問 → 向量檢索 Top-K Chunks
-  → 組裝 Prompt → Gemini 2.5 Flash 生成回答
+  → 使用者提問 → 向量檢索 Top-K Chunks（query: 前綴）
+  → 組裝 Prompt → LLM 生成回答
   → 顯示回答 + 來源頁碼
 ```
 
 ### 技術棧
 
-| 元件      | 技術                                         |
-| --------- | -------------------------------------------- |
-| UI        | Streamlit                                    |
-| Embedding | `sentence-transformers` (`all-MiniLM-L6-v2`) |
-| Vector DB | ChromaDB（本地持久化）                       |
-| LLM       | Google Gemini 2.5 Flash                      |
-| PDF 解析  | pypdf                                        |
-| 容器化    | Docker + Docker Compose                      |
+| 元件      | 技術                                                       |
+| --------- | ---------------------------------------------------------- |
+| UI        | Streamlit                                                  |
+| Embedding | `sentence-transformers` (`intfloat/multilingual-e5-small`) |
+| Vector DB | ChromaDB（本地持久化）                                     |
+| LLM       | Google Gemini / Gemma（可切換，預設 gemma-4-26b）          |
+| PDF 解析  | pypdf                                                      |
+| 容器化    | Docker + Docker Compose                                    |
 
 ## 快速開始
 
@@ -62,7 +62,10 @@ streamlit run app.py
 3. 在對話框輸入問題
 4. 點開 **Sources** 折疊區塊可查看引用的原文段落與頁碼
 
-**Retrieval Settings**：可調整 Top K（預設 5），數值越高參考段落越多，但 Prompt 也越長。
+**Retrieval Settings**：
+
+- **模型**：可切換 gemma-4-26b（預設，開源）、gemini-2.5-flash、gemini-3-flash-preview、gemini-3.1-flash-lite-preview。
+- **Top K**：可調整 Top K（預設 5），數值越高參考段落越多，但 Prompt 也越長。
 
 ## 延伸閱讀
 

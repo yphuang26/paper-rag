@@ -14,7 +14,7 @@ paper-rag/
 │   ├── chunker.py          # 遞迴文字切分 + overlap
 │   ├── embedder.py         # Embedding 生成 + ChromaDB 讀寫
 │   ├── retriever.py        # 向量相似度檢索
-│   ├── generator.py        # RAG 流程 + Gemini 回答生成
+│   ├── generator.py        # RAG 流程 + LLM 回答生成
 │   └── build_index.py      # CLI 建索引工具
 ├── data/                   # 放置 PDF 檔案
 ├── chroma_db/              # ChromaDB 持久化資料（自動產生）
@@ -33,7 +33,7 @@ paper-rag/
 
 ### `chunker.py`
 
-Embedding 模型有 token 上限（MiniLM 有效範圍約 256 tokens）。Chunk 過大時，單一向量必須壓縮多個主題的語義，導致向量在空間中趨向「均值」，與任何單一主題的距離都被拉遠，retrieval 精準度下降。Chunk 過小則切斷語義單位，缺乏上下文的片段讓 LLM 資訊不足，難以生成有效回答。
+Embedding 模型有 token 上限（multilingual-e5-small 有效範圍約 512 tokens）。Chunk 過大時，單一向量必須壓縮多個主題的語義，導致向量在空間中趨向「均值」，與任何單一主題的距離都被拉遠，retrieval 精準度下降。Chunk 過小則切斷語義單位，缺乏上下文的片段讓 LLM 資訊不足，難以生成有效回答。
 
 | 情況       | 問題                     |
 | ---------- | ------------------------ |
@@ -43,27 +43,27 @@ Embedding 模型有 token 上限（MiniLM 有效範圍約 256 tokens）。Chunk 
 
 **Recursive 切分策略**
 
-依優先序嘗試段落符（`\n\n`）、換行符（`\n`）、句點（`. `）、空格（` `），最後才執行硬切。每一級分隔符對應一個語義層級，優先在語義完整的邊界分割，可最大化每個 chunk 的語義內聚性（semantic cohesion），讓切出來的片段盡量是一個完整的論述單位，而非人為截斷的文字碎片。
+依優先序嘗試段落符（`\n\n`）、換行符（`\n`）、中文句號（`。！？；`）、英文句點（`. `）、空格（` `），最後才執行硬切。每一級分隔符對應一個語義層級，優先在語義完整的邊界分割，可最大化每個 chunk 的語義內聚性（semantic cohesion），讓切出來的片段盡量是一個完整的論述單位，而非人為截斷的文字碎片。中文標點符號的加入使中文論文切分更加自然。
 
 **Overlap**
 
-Chunk A 的結尾與 Chunk B 的開頭重疊一段文字，避免重要資訊剛好卡在切割點被截斷。本專案設定 `chunk_size=500`、`overlap=50`，即每個 chunk 500 字元、與前一個 chunk 重疊 50 字元（10%）。
+Chunk A 的結尾與 Chunk B 的開頭重疊一段文字，避免重要資訊剛好卡在切割點被截斷。本專案設定 `chunk_size=800`、`overlap=100`，即每個 chunk 800 字元、與前一個 chunk 重疊 100 字元（12.5%）。
 
 ### `embedder.py`
 
-將切好的 chunks 逐一餵入 `all-MiniLM-L6-v2`，每個 chunk 轉成 384 維向量後存入 ChromaDB。「相似」的定義是 cosine similarity——兩個向量夾角越小，語義越接近。
+將切好的 chunks 逐一餵入 `intfloat/multilingual-e5-small`，每個 chunk 轉成 384 維向量後存入 ChromaDB。e5 系列模型要求存入時為文件加上 `"passage: "` 前綴，以啟動 passage encoder 模式。「相似」的定義是 cosine similarity——兩個向量夾角越小，語義越接近。
 
 ### `retriever.py`
 
-把使用者的問題變成 384 維向量，去 ChromaDB 找最像的 top-k 個 chunks 回傳。ChromaDB 回傳 cosine distance，換算為 similarity score（`1 - distance`）。
+把使用者的問題加上 `"query: "` 前綴後編碼成 384 維向量，去 ChromaDB 找最像的 top-k 個 chunks 回傳。ChromaDB 回傳 cosine distance，換算為 similarity score（`1 - distance`）。
 
-**對稱檢索（Symmetric Retrieval）**
+**非對稱檢索（Asymmetric Retrieval）**
 
-問題和文件用同一個 embedding 模型編碼。這聽起來理所當然，但其實是個設計選擇——進階做法會用「非對稱」，即 query encoder 和 passage encoder 分開訓練（例如 DPR），問答效果更好但複雜度翻倍。對稱檢索是 production 最常見的起點。
+e5 模型在 query 端使用 `"query: "` 前綴、在 document 端使用 `"passage: "` 前綴，兩種前綴在訓練時對應不同的語義角色，使模型能更好地處理「問題語境 → 文章語境」的跨類型相似度比對。這是比對稱檢索（query 與 document 用同一種編碼）更精準的做法，同時維持單一模型的簡潔性，不需要像 DPR 那樣分別訓練 query encoder 和 passage encoder。
 
 ### `generator.py`
 
-把使用者問題與 top-k chunks 組成 prompt，送給 LLM 生成有引用來源的答案。
+把使用者問題與 top-k chunks 組成 prompt，送給 LLM 生成有引用來源的答案。支援串流輸出（streaming），讓使用者即時看到生成進度。可在 UI 選擇模型：gemma-4-26b（預設）、gemini-2.5-flash、gemini-3-flash-preview、gemini-3.1-flash-lite-preview。
 
 **Prompt 工程三原則**
 
@@ -77,12 +77,13 @@ RAG 的生成品質高度依賴 prompt 設計，三個核心原則：
 
 ## 工具選型
 
-### Embedding 模型：`all-MiniLM-L6-v2`
+### Embedding 模型：`intfloat/multilingual-e5-small`
 
-- 384 維，模型小（約 90MB）、推論快
+- 384 維，模型小（約 120MB）、推論快
 - 本地執行，不需要 API 費用，文件不外傳
-- 在 MTEB benchmark 短文本檢索任務上表現足夠
-- 缺點：以英文為主，中文效果有限
+- 支援多語言（100+ 語言），中文、英文混合論文皆可處理
+- 使用非對稱前綴設計（`query:` / `passage:`），query-document 比對精準度優於對稱模型
+- 在 MTEB benchmark 多語言檢索任務上表現良好
 
 ### 向量資料庫：ChromaDB
 
@@ -96,7 +97,7 @@ RAG 的生成品質高度依賴 prompt 設計，三個核心原則：
 
 **Q：chunk size 怎麼決定的？**
 
-取決於 embedding 模型的有效 context 範圍。MiniLM-L6 在 256 tokens 內語義最準，超過後效果遞減。500 字元（中英混合約對應 100–150 tokens）在上限內留有 buffer。Overlap 設 chunk 的 10%（50 字元）是業界常見起點，實際可透過 retrieval 評測再調整。
+取決於 embedding 模型的有效 context 範圍。multilingual-e5-small 上限為 512 tokens，800 字元（中英混合約對應 200–300 tokens）在上限內留有充分 buffer。Overlap 設 chunk 的 12.5%（100 字元）是業界常見起點，實際可透過 retrieval 評測再調整。
 
 **Q：為什麼不用語義切分？**
 
@@ -104,7 +105,7 @@ RAG 的生成品質高度依賴 prompt 設計，三個核心原則：
 
 **Q：為什麼不用 OpenAI embedding？**
 
-成本、隱私、可離線。MiniLM 對短文本檢索已經足夠，且不需付費或將文件傳給第三方。中文場景則考慮 `BAAI/bge-base-zh` 或 `text-embedding-3-small`。
+成本、隱私、可離線。multilingual-e5-small 對多語言短文本檢索已經足夠，且不需付費或將文件傳給第三方。需要更高精準度時可考慮 `intfloat/multilingual-e5-large` 或 `text-embedding-3-small`。
 
 **Q：為什麼不用 Pinecone / Weaviate / pgvector？**
 
